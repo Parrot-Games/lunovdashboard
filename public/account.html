@@ -3,223 +3,282 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lunov Dashboard — Account</title>
+<title>Lunov Dashboard — Control Center</title>
 <link rel="icon" href="assets/cropped_circle_image.png" type="image/png">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<link rel="stylesheet" href="style.css">
 <style>
 body {
   font-family: 'Inter', sans-serif;
   background: #0f172a;
   color: #fff;
   margin: 0;
+  overflow-x: hidden;
 }
 
-/* Center container */
-.account-section {
+header {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
-  min-height: 85vh;
-  padding: 40px 15px;
+  padding: 15px 40px;
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #1e293b;
 }
 
-.account-card {
-  background: #1e293b;
-  border-radius: 20px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-  padding: 40px;
-  text-align: center;
-  width: 100%;
-  max-width: 450px;
-  animation: fadeIn 0.6s ease;
+header .logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-.account-card img.logo {
-  width: 80px;
-  margin-bottom: 20px;
+header .logo img {
+  width: 40px;
+  border-radius: 50%;
 }
 
-.account-card h2 {
-  font-size: 26px;
-  margin-bottom: 10px;
+header nav a {
+  color: #94a3b8;
+  margin: 0 15px;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.3s;
+}
+
+header nav a:hover {
   color: #fff;
 }
 
-.account-card p {
-  color: #94a3b8;
-  margin-bottom: 30px;
+.dashboard {
+  max-width: 1000px;
+  margin: 50px auto;
+  padding: 20px;
 }
 
-/* Discord login button */
-.discord-login-btn {
-  background-color: #5865F2;
-  color: white;
+.tabs {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 25px;
+}
+
+.tab-btn {
+  background: #1e293b;
   border: none;
-  padding: 14px 18px;
+  color: #94a3b8;
+  padding: 10px 20px;
   border-radius: 10px;
-  font-size: 16px;
-  font-weight: 600;
   cursor: pointer;
-  transition: background 0.3s ease;
+  transition: all 0.3s;
+  font-weight: 600;
 }
 
-.discord-login-btn:hover {
-  background-color: #4752c4;
+.tab-btn.active {
+  background: #3b82f6;
+  color: #fff;
 }
 
-/* User info card (after login) */
-.user-info {
+.tab-content {
   display: none;
-  flex-direction: column;
-  align-items: center;
+  animation: fadeIn 0.5s ease;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* Overview */
+.overview {
   text-align: center;
 }
-
-.user-info img {
+.overview img {
   border-radius: 50%;
-  width: 90px;
-  height: 90px;
-  margin-bottom: 15px;
+  width: 100px;
+  height: 100px;
 }
-
-.user-info h3 {
-  margin: 5px 0;
-  font-size: 22px;
+.overview h2 {
+  margin: 10px 0;
 }
-
-.user-info p {
-  color: #94a3b8;
-  margin-bottom: 20px;
+.stat-box {
+  display: inline-block;
+  background: #1e293b;
+  padding: 15px 25px;
+  border-radius: 12px;
+  margin: 10px;
+  font-size: 16px;
 }
-
-.dashboard-btn {
+.action-btn {
   background: #3b82f6;
-  color: white;
   border: none;
   padding: 12px 20px;
   border-radius: 10px;
+  color: white;
   font-weight: 600;
   cursor: pointer;
-  text-decoration: none;
+  transition: background 0.3s;
+  margin: 10px;
 }
-
-.dashboard-btn:hover {
+.action-btn:hover {
   background: #2563eb;
 }
 
-.logout-btn {
-  margin-top: 15px;
-  color: #ef4444;
-  font-weight: 600;
+/* Servers */
+#serverList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+}
+.server-card {
+  background: #1e293b;
+  border-radius: 15px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+.server-card img {
+  border-radius: 50%;
+  width: 70px;
+  height: 70px;
+  margin-bottom: 10px;
+}
+.server-card h4 {
+  margin-bottom: 8px;
+}
+.manage-btn {
+  background: #3b82f6;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  color: #fff;
   cursor: pointer;
+  transition: background 0.3s;
+}
+.manage-btn:hover {
+  background: #2563eb;
 }
 
+/* Settings */
+.settings {
+  text-align: center;
+}
+.logout-btn {
+  color: #ef4444;
+  cursor: pointer;
+  margin-top: 20px;
+  font-weight: 600;
+}
 .logout-btn:hover {
   text-decoration: underline;
 }
 
 @keyframes fadeIn {
-  from {opacity: 0; transform: translateY(10px);}
-  to {opacity: 1; transform: translateY(0);}
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>
 </head>
 <body>
 
-<!-- Header -->
 <header>
-  <div class="header-container">
-    <div class="logo">
-      <img class="logo-icon" src="assets/cropped_circle_image.png" alt="Lunov Logo">
-      <div class="logo-text"><a href="https://lunov.bot.nu/">Lunov</a></div>
-    </div>
-    <nav>
-      <a href="index.html"><i class="fas fa-home"></i> Home</a>
-      <a href="commands.html"><i class="fas fa-terminal"></i> Commands</a>
-      <a href="servers.html"><i class="fas fa-server"></i> Servers</a>
-      <a href="changelogs.html"><i class="fas fa-clipboard-list"></i> Changelogs</a>
-      <a href="https://discord.gg/bQaDPh3fbF" target="_blank"><i class="fas fa-headset"></i> Support</a>
-    </nav>
+  <div class="logo">
+    <img src="assets/cropped_circle_image.png" alt="Lunov">
+    <span><strong>Lunov</strong> Dashboard</span>
   </div>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="commands.html">Commands</a>
+    <a href="servers.html">Servers</a>
+    <a href="changelogs.html">Changelogs</a>
+    <a href="https://discord.gg/bQaDPh3fbF" target="_blank">Support</a>
+  </nav>
 </header>
 
-<!-- Account Section -->
-<section class="account-section">
-  <div class="account-card">
-    <img src="assets/cropped_circle_image.png" alt="Lunov Logo" class="logo">
-    <div class="login-view" id="loginView">
-      <h2>Login with Discord</h2>
-      <p>Authenticate using your Discord account to access the Lunov Dashboard.</p>
-      <button id="discordLogin" class="discord-login-btn"><i class="fab fa-discord"></i> Login with Discord</button>
-    </div>
-
-    <div class="user-info" id="userInfo">
-      <img id="userAvatar" src="" alt="User Avatar">
-      <h3 id="userName">Username</h3>
-      <p id="userTag">@discordTag</p>
-      <a href="https://lunov.bot.nu/api/auth/discord" class="dashboard-btn">Open Dashboard</a>
-      <div class="logout-btn" id="logoutBtn">Logout</div>
-    </div>
+<div class="dashboard">
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="overview">Overview</button>
+    <button class="tab-btn" data-tab="servers">Servers</button>
+    <button class="tab-btn" data-tab="settings">Settings</button>
   </div>
-</section>
 
-<!-- Footer -->
-<footer>
-  <div class="container">
-    <div class="footer-bottom">
-      <div>&copy; 2025 Lunov Dashboard. All Rights Reserved.</div>
-      <div class="footer-bottom-links">
-        <a href="index.html">Home</a>
-        <a href="commands.html">Commands</a>
-        <a href="changelogs.html">Changelogs</a>
-        <a href="https://discord.gg/bQaDPh3fbF" target="_blank">Support</a>
-      </div>
+  <div id="overview" class="tab-content active overview">
+    <img id="userAvatar" src="" alt="User Avatar">
+    <h2 id="userName">Loading...</h2>
+    <p id="userTag"></p>
+    <div>
+      <div class="stat-box"><i class="fas fa-server"></i> <span id="serverCount">0</span> Servers</div>
+      <div class="stat-box"><i class="fas fa-robot"></i> Multipurpose Bot</div>
     </div>
+    <button class="action-btn" id="inviteBot">Invite Lunov</button>
+    <button class="action-btn" onclick="window.open('https://discord.gg/bQaDPh3fbF','_blank')">Support Server</button>
   </div>
-</footer>
+
+  <div id="servers" class="tab-content">
+    <h2>Your Servers</h2>
+    <div id="serverList">Loading servers...</div>
+  </div>
+
+  <div id="settings" class="tab-content settings">
+    <h2>Account Settings</h2>
+    <p>Manage your Lunov account and logout securely.</p>
+    <div class="logout-btn" id="logoutBtn">Logout</div>
+  </div>
+</div>
 
 <script>
 const API_BASE = "https://lunov.bot.nu/api";
-const DISCORD_AUTH_URL = `${API_BASE}/auth/discord`;
 
-document.getElementById("discordLogin").addEventListener("click", () => {
-  // Redirect to backend Discord OAuth2 route
-  window.location.href = DISCORD_AUTH_URL;
+// Tab navigation
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-content").forEach(tab => tab.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById(btn.dataset.tab).classList.add("active");
+  });
 });
 
 async function checkAuth() {
   try {
-    // Fetch user info from backend session
     const res = await fetch(`${API_BASE}/me`, { credentials: "include" });
     if (!res.ok) throw new Error("Not logged in");
-
     const data = await res.json();
 
-    // Hide login view, show user info
-    document.getElementById("loginView").style.display = "none";
-    const userInfo = document.getElementById("userInfo");
-    userInfo.style.display = "flex";
-
-    // Display Discord credentials
+    // Set user data
+    document.getElementById("userAvatar").src = `https://cdn.discordapp.com/avatars/${data.id}/${data.avatar}.png?size=256`;
     document.getElementById("userName").textContent = data.username;
-    document.getElementById("userTag").textContent = `#${data.discriminator}`;
-    document.getElementById("userAvatar").src =
-      `https://cdn.discordapp.com/avatars/${data.id}/${data.avatar}.png?size=256`;
+    document.getElementById("userTag").textContent = "#" + data.discriminator;
+
+    // Fetch mutual servers
+    const guilds = await fetch(`${API_BASE}/guilds`, { credentials: "include" }).then(r => r.json());
+    document.getElementById("serverCount").textContent = guilds.length;
+
+    const list = document.getElementById("serverList");
+    list.innerHTML = guilds.length
+      ? guilds.map(g => `
+        <div class="server-card">
+          <img src="https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=128" alt="${g.name}">
+          <h4>${g.name}</h4>
+          <button class="manage-btn" onclick="window.location='servers.html?id=${g.id}'">Manage</button>
+        </div>
+      `).join('')
+      : '<p>No mutual servers found.</p>';
+
   } catch (err) {
     console.log("User not logged in");
+    window.location.href = `${API_BASE}/auth/discord`;
   }
 }
 
-// Logout route
 document.getElementById("logoutBtn").addEventListener("click", async () => {
   await fetch(`${API_BASE}/auth/logout`, { credentials: "include" });
   location.reload();
 });
 
+document.getElementById("inviteBot").addEventListener("click", () => {
+  window.open("https://discord.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&permissions=8&scope=bot%20applications.commands", "_blank");
+});
+
 checkAuth();
 </script>
-
 </body>
 </html>
