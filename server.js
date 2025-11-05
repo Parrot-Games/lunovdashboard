@@ -15,15 +15,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Session setup
+app.set("trust proxy", 1); // important when behind Cloudflare or Render
+
 app.use(session({
-    secret: process.env.SESSION_SECRET || "supersecretkey",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: process.env.NODE_ENV === "production", // true on HTTPS
-      httpOnly: true,
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
-    }
+  secret: process.env.SESSION_SECRET || "supersecretkey",
+  resave: false,
+  saveUninitialized: false,
+  proxy: true,
+  cookie: {
+    secure: true,        // Render uses HTTPS
+    httpOnly: true,
+    sameSite: "lax",     // works properly for same-domain redirects
+  },
 }));
 
 app.use(passport.initialize());
