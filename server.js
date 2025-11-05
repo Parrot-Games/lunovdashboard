@@ -16,14 +16,14 @@ const __dirname = path.dirname(__filename);
 
 // Session setup
 app.use(session({
-  secret: process.env.SESSION_SECRET || "supersecretkey",
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: true,          // must be true for https
-    httpOnly: true,
-    sameSite: "lax"       // critical: allows cross-origin cookies
-  }
+    secret: process.env.SESSION_SECRET || "supersecretkey",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === "production", // true on HTTPS
+      httpOnly: true,
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
+    }
 }));
 
 app.use(passport.initialize());
