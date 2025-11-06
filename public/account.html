@@ -14,6 +14,7 @@ body {
   color: #fff;
   margin: 0;
   overflow-x: hidden;
+  transition: opacity 0.3s ease;
 }
 
 header {
@@ -265,7 +266,17 @@ async function checkAuth() {
 
   } catch (err) {
     console.log("User not logged in");
-    window.location.href = `${API_BASE}/auth/discord`;
+    document.querySelector(".dashboard").innerHTML = `
+      <div style="text-align:center; margin-top:100px;">
+        <h2>Login with Discord to access your dashboard</h2>
+        <button id="discordLogin" class="action-btn">
+          <i class="fab fa-discord"></i> Login with Discord
+        </button>
+      </div>
+    `;
+    document.getElementById("discordLogin").addEventListener("click", () => {
+      window.location.href = `${API_BASE}/auth/discord`;
+    });
   }
 }
 
