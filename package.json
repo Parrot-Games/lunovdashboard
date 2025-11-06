@@ -14,7 +14,7 @@
     "express-session": "^1.17.3",
     "node-fetch": "^3.3.2",
     "passport": "^0.7.0",
-    "passport-discord": "^0.1.4"
-    "connect-mongo": "^5.0.0",
+    "passport-discord": "^0.1.4",
+    "connect-mongo": "^5.0.0"
   }
 }
