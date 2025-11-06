@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import fetch from "node-fetch";
 import path from "path";
 import { fileURLToPath } from "url";
+import MongoStore from "connect-mongo";
 
 dotenv.config();
 const app = express();
@@ -18,14 +19,20 @@ const __dirname = path.dirname(__filename);
 app.set("trust proxy", 1); // important when behind Cloudflare or Render
 
 app.use(session({
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGO_URI,
+    collectionName: "sessions",
+    ttl: 60 * 60 * 24 * 7,
+  }),
   secret: process.env.SESSION_SECRET || "supersecretkey",
   resave: false,
   saveUninitialized: false,
   proxy: true,
   cookie: {
-    secure: true,        // Render uses HTTPS
+    secure: true,
     httpOnly: true,
-    sameSite: "lax",     // works properly for same-domain redirects
+    sameSite: "lax",
+    maxAge: 1000 * 60 * 60 * 24 * 7,
   },
 }));
 
