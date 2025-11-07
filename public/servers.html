@@ -337,7 +337,7 @@ footer {
          class="btn btn-primary">
         <i class="fas fa-plus"></i> Add Lunov to Server
       </a>
-      <a href="https://lunovdashboard-3acz.onrender.com/" class="btn btn-secondary">
+      <a href="https://lunov.bot.nu/" class="btn btn-secondary">
         <i class="fas fa-cog"></i> Open Dashboard
       </a>
     </div>
@@ -393,7 +393,7 @@ footer {
           <h4>Connect</h4>
           <a href="https://discord.gg/bQaDPh3fbF" target="_blank">Support Server</a>
           <a href="https://discord.com/oauth2/authorize?client_id=1424366813789028412&permissions=268634146&scope=bot+applications.commands" target="_blank">Invite Bot</a>
-          <a href="https://lunovdashboard-3acz.onrender.com" target="_blank">Dashboard</a>
+          <a href="https://lunov.bot.nu" target="_blank">Dashboard</a>
         </div>
       </div>
     </div>
@@ -415,7 +415,7 @@ async function loadServers() {
   const count = document.getElementById("serverCount");
 
   try {
-    const res = await fetch("https://lunovdashboard-3acz.onrender.com/api/guilds", {
+    const res = await fetch("https://lunov.bot.nu/api/guilds", {
       credentials: "include",
     });
 
@@ -438,7 +438,7 @@ async function loadServers() {
           <div class="feature-icon"><i class="fas fa-server"></i></div>
           <h3>${server.name}</h3>
           <p>ID: ${server.id}</p>
-          <a href="https://lunovdashboard-3acz.onrender.com/manage/${server.id}" class="btn btn-primary" style="margin-top:10px;">
+          <a href="https://lunov.bot.nu/manage/${server.id}" class="btn btn-primary" style="margin-top:10px;">
             <i class="fas fa-wrench"></i> Manage
           </a>
         </div>
