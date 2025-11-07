@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manage Server | Lunov Dashboard</title>
+  <style>
+    body {
+  font-family: "Poppins", sans-serif;
+  background-color: #0f111a;
+  color: #e4e6eb;
+  margin: 0;
+  padding: 0;
+}
+
+nav {
+  background: #23272a;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1em 2em;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+nav h1 {
+  color: #7289da;
+  margin: 0;
+}
+
+button {
+  background-color: #5865f2;
+  border: none;
+  color: white;
+  padding: 0.6em 1.2em;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1em;
+}
+
+button:hover {
+  background-color: #4752c4;
+}
+
+main {
+  max-width: 600px;
+  margin: 3em auto;
+  padding: 2em;
+  background: #1e2129;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+section h3 {
+  margin-top: 0;
+  border-bottom: 2px solid #5865f2;
+  padding-bottom: 0.3em;
+}
+
+label {
+  display: block;
+  margin-top: 1em;
+  font-weight: 600;
+}
+
+input,
+select {
+  width: 100%;
+  margin-top: 0.5em;
+  padding: 0.6em;
+  border: 1px solid #333;
+  border-radius: 6px;
+  background: #2c2f33;
+  color: white;
+}
+
+#guildInfo {
+  text-align: center;
+}
+
+#guildIcon {
+  border-radius: 50%;
+  width: 80px;
+  height: 80px;
+  margin-bottom: 0.5em;
+}
+  </style>
+</head>
+<body>
+  <nav>
+    <h1>Lunov Dashboard</h1>
+    <button id="logoutBtn">Logout</button>
+  </nav>
+
+  <main>
+    <section id="guildInfo">
+      <img id="guildIcon" src="" alt="Guild Icon" />
+      <h2 id="guildName"></h2>
+    </section>
+
+    <section id="settings">
+      <h3>Server Settings</h3>
+
+      <label for="prefix">Prefix</label>
+      <input type="text" id="prefix" placeholder="!" />
+
+      <label for="welcomeChannel">Welcome Channel</label>
+      <select id="welcomeChannel">
+        <option value="">Select a channel...</option>
+      </select>
+
+      <button id="saveBtn">Save Changes</button>
+    </section>
+  </main>
+
+  <script>
+    // Parse guild ID from URL
+const guildId = window.location.pathname.split("/").pop();
+
+async function loadGuild() {
+  const res = await fetch(`/api/guild/${guildId}`, { credentials: "include" });
+  if (!res.ok) {
+    document.body.innerHTML = "<h2>Unauthorized or Guild not found</h2>";
+    return;
+  }
+
+  const guild = await res.json();
+
+  document.getElementById("guildName").textContent = guild.name;
+  document.getElementById("guildIcon").src =
+    guild.icon || "https://cdn.discordapp.com/embed/avatars/0.png";
+
+  document.getElementById("prefix").value = guild.settings?.prefix || "!";
+
+  // Fetch channels using your bot token proxy (or static demo)
+  const channels = await fetch(`/api/discord/${guildId}/channels`, {
+    credentials: "include",
+  }).then((r) => r.json()).catch(() => []);
+
+  const select = document.getElementById("welcomeChannel");
+  channels.forEach((ch) => {
+    if (ch.type === 0) { // Text channels
+      const opt = document.createElement("option");
+      opt.value = ch.id;
+      opt.textContent = `#${ch.name}`;
+      if (guild.settings.welcomeChannel === ch.id) opt.selected = true;
+      select.appendChild(opt);
+    }
+  });
+}
+
+// Save settings
+document.getElementById("saveBtn").addEventListener("click", async () => {
+  const prefix = document.getElementById("prefix").value;
+  const welcomeChannel = document.getElementById("welcomeChannel").value;
+
+  const res = await fetch(`/api/guild/${guildId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prefix, welcomeChannel }),
+    credentials: "include",
+  });
+
+  const data = await res.json();
+  if (data.success) alert("✅ Settings updated successfully!");
+  else alert("❌ Failed to update settings.");
+});
+
+// Logout
+document.getElementById("logoutBtn").addEventListener("click", async () => {
+  await fetch("/api/auth/logout", { credentials: "include" });
+  window.location.href = "/";
+});
+
+loadGuild();
+  </script>
+</body>
+</html>
