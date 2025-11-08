@@ -261,7 +261,7 @@ header nav a:hover {
 </div>
 
 <script>
-const API_BASE = "https://lunov.bot.nu/api";
+const API_BASE = "/api";
 
 // Tab navigation
 document.querySelectorAll(".tab-btn").forEach(btn => {
@@ -334,11 +334,22 @@ async function manageGuild(guildId, guildName) {
   document.getElementById("saveStatus").style.display = "none";
 
   try {
-    const res = await fetch(`${API_BASE}/guild/${guildId}`, { credentials: "include" });
-    if (!res.ok) throw new Error("Failed to load guild settings");
+    console.log("Loading guild settings for:", guildId);
+    const res = await fetch(`/api/guild/${guildId}`, { 
+      credentials: "include" 
+    });
+    
+    console.log("Response status:", res.status);
+    
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(errorData.error || `HTTP ${res.status}`);
+    }
+    
     const guild = await res.json();
+    console.log("Loaded guild settings:", guild);
 
-    // Fill form
+    // Fill form with proper null checks
     document.getElementById("prefix").value = guild.settings?.prefix || "!";
     document.getElementById("muteRole").value = guild.settings?.muteRole || "";
     document.getElementById("welcomeChannel").value = guild.settings?.welcomeChannel || "";
@@ -346,8 +357,8 @@ async function manageGuild(guildId, guildName) {
     document.getElementById("logChannel").value = guild.settings?.logChannel || "";
 
   } catch (err) {
-    console.error("Error loading guild:", err);
-    alert("Failed to load server settings.");
+    console.error("Error loading guild settings:", err);
+    alert("Failed to load server settings: " + err.message);
   }
 }
 
@@ -364,18 +375,24 @@ document.getElementById("guildSettingsForm").addEventListener("submit", async (e
     logChannel: document.getElementById("logChannel").value,
   };
 
-  const res = await fetch(`${API_BASE}/guild/${selectedGuildId}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    credentials: "include",
-  });
+  try {
+    const res = await fetch(`/api/guild/${selectedGuildId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      credentials: "include",
+    });
 
-  if (res.ok) {
-    document.getElementById("saveStatus").style.display = "block";
-    setTimeout(() => (document.getElementById("saveStatus").style.display = "none"), 2500);
-  } else {
-    alert("Failed to save settings.");
+    if (res.ok) {
+      document.getElementById("saveStatus").style.display = "block";
+      setTimeout(() => (document.getElementById("saveStatus").style.display = "none"), 2500);
+    } else {
+      const errorData = await res.json();
+      throw new Error(errorData.error || 'Failed to save settings');
+    }
+  } catch (err) {
+    console.error("Save error:", err);
+    alert("Failed to save settings: " + err.message);
   }
 });
 
