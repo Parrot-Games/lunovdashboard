@@ -113,11 +113,20 @@ select {
   </main>
 
   <script>
-    // Parse guild ID from URL
-const guildId = window.location.pathname.split("/").pop();
+// Get guild ID from URL parameters instead of path
+const urlParams = new URLSearchParams(window.location.search);
+const guildId = urlParams.get('id');
+
+// If no ID found, show error
+if (!guildId) {
+    document.body.innerHTML = "<h2>❌ No server ID provided. Use: /manage.html?id=GUILD_ID</h2>";
+    return;
+}
 
 async function loadGuild() {
-  const res = await fetch(`/api/guild/${guildId}`, { credentials: "include" });
+  const res = await fetch(`/api/guild/${guildId}`, { 
+    credentials: "include" 
+  });
   if (!res.ok) {
     document.body.innerHTML = "<h2>Unauthorized or Guild not found</h2>";
     return;
