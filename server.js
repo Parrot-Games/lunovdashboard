@@ -8,7 +8,6 @@ import path from "path";
 import { fileURLToPath } from "url";
 import MongoStore from "connect-mongo";
 import mongoose from "mongoose";
-import cors from "cors";
 
 // Setup
 dotenv.config();
@@ -21,11 +20,6 @@ const __dirname = path.dirname(__filename);
 
 // Session setup
 app.set("trust proxy", 1); // Required for Render (uses reverse proxy)
-
-app.use(cors({
-  origin: ['https://lunov.bot.nu', 'http://localhost:3000'],
-  credentials: true
-}));
 
 // MongoDB
 mongoose
@@ -54,13 +48,16 @@ app.use(
     store: MongoStore.create({
       mongoUrl: process.env.MONGO_URI,
       collectionName: "sessions",
+      ttl: 60 * 60 * 24 * 7, // 7 days
     }),
-    secret: process.env.SESSION_SECRET,
+    secret: process.env.SESSION_SECRET || "supersecretkey",
     resave: false,
     saveUninitialized: false,
+    proxy: true,
     cookie: {
-      secure: process.env.NODE_ENV === 'production',
+      secure: true,
       httpOnly: true,
+      sameSite: "lax",
       maxAge: 1000 * 60 * 60 * 24 * 7,
     },
   })
@@ -262,36 +259,12 @@ app.post("/api/guild/:id/welcome-channel", async (req, res) => {
   }
 });
 
-// Serve static files from current directory
-app.use(express.static(__dirname));
+// Serve static frontend
+app.use(express.static(path.join(__dirname, "public")));
 
-// Specific routes for your HTML files
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
-});
-
-app.get("/account.html", (req, res) => {
-  res.sendFile(path.join(__dirname, "account.html"));
-});
-
-app.get("/manage.html", (req, res) => {
-  res.sendFile(path.join(__dirname, "manage.html"));
-});
-
-// Debug middleware
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`);
-  next();
-});
-
-// error handling for /api/me
-app.get("/api/me", (req, res) => {
-  console.log("User session:", req.user ? "Logged in" : "Not logged in");
-  if (!req.user) {
-    console.log("No user in session");
-    return res.status(401).json({ error: "Not logged in" });
-  }
-  res.json(req.user);
+// Fallback for React/SPA routing
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
 // Start server
