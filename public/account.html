@@ -178,18 +178,20 @@ header nav a:hover {
 }
 .input-field {
   width: 100%;
-  padding: 8px;
+  padding: 10px;
   border-radius: 8px;
   border: 1px solid #334155;
   background: #0f172a;
   color: #fff;
   margin-top: 5px;
+  font-family: 'Inter', sans-serif;
 }
 
 .input-field:focus {
   outline: none;
   border-color: #3b82f6;
-}  
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
 </style>
 </head>
 <body>
@@ -347,26 +349,75 @@ async function manageGuild(guildId, guildName) {
   document.getElementById("selectedServerName").textContent = guildName;
   document.getElementById("saveStatus").style.display = "none";
 
+  // Show loading state
+  const form = document.getElementById("guildSettingsForm");
+  const originalHTML = form.innerHTML;
+  form.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Loading server settings...</div>';
+
   try {
-    const res = await fetch(`${API_BASE}/guild/${guildId}`, { credentials: "include" });
-    if (!res.ok) throw new Error("Failed to load guild settings");
-    const guildData = await res.json();
-
-    // Debug: log the response to see actual structure
-    console.log("Guild data:", guildData);
-
-    // Fill form - handle different possible response structures
-    const settings = guildData.settings || guildData || {};
+    console.log(`Fetching settings for guild: ${guildId}`);
+    const res = await fetch(`${API_BASE}/guild/${guildId}`, { 
+      credentials: "include"
+    });
     
-    document.getElementById("prefix").value = settings.prefix || "!";
-    document.getElementById("muteRole").value = settings.muteRole || "";
-    document.getElementById("welcomeChannel").value = settings.welcomeChannel || "";
-    document.getElementById("leaveChannel").value = settings.leaveChannel || "";
-    document.getElementById("logChannel").value = settings.logChannel || "";
+    console.log(`Response status: ${res.status}`);
+    
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('API Error:', errorData);
+      
+      if (res.status === 401) {
+        throw new Error("Please login again");
+      } else if (res.status === 403) {
+        throw new Error("You need 'Manage Server' permission to configure bot settings");
+      } else if (res.status === 404) {
+        throw new Error("Server not found");
+      } else {
+        throw new Error(errorData.error || `Failed to load settings (${res.status})`);
+      }
+    }
+    
+    const guildData = await res.json();
+    console.log("Guild settings loaded:", guildData);
+
+    // Restore form with loaded data
+    form.innerHTML = `
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+        <div>
+          <label>Prefix</label><br>
+          <input type="text" id="prefix" class="input-field" value="${guildData.settings?.prefix || '!'}">
+        </div>
+        <div>
+          <label>Mute Role ID</label><br>
+          <input type="text" id="muteRole" class="input-field" value="${guildData.settings?.muteRole || ''}">
+        </div>
+        <div>
+          <label>Welcome Channel ID</label><br>
+          <input type="text" id="welcomeChannel" class="input-field" value="${guildData.settings?.welcomeChannel || ''}">
+        </div>
+        <div>
+          <label>Leave Channel ID</label><br>
+          <input type="text" id="leaveChannel" class="input-field" value="${guildData.settings?.leaveChannel || ''}">
+        </div>
+        <div>
+          <label>Log Channel ID</label><br>
+          <input type="text" id="logChannel" class="input-field" value="${guildData.settings?.logChannel || ''}">
+        </div>
+      </div>
+      <br>
+      <button type="submit" class="action-btn">💾 Save Settings</button>
+      <button type="button" class="action-btn" style="background:#64748b;" id="closeSettings">Close</button>
+    `;
+
+    // Re-attach event listeners
+    document.getElementById('closeSettings').addEventListener('click', () => {
+      document.getElementById("serverSettingsPanel").style.display = "none";
+    });
 
   } catch (err) {
     console.error("Error loading guild:", err);
-    alert("Failed to load server settings. Please check if Lunov has the necessary permissions in this server.");
+    form.innerHTML = originalHTML;
+    alert(`Error: ${err.message}`);
   }
 }
 
