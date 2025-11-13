@@ -8,6 +8,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import MongoStore from "connect-mongo";
 import mongoose from "mongoose";
+import cors from "cors";
 
 // Setup
 dotenv.config();
@@ -26,6 +27,12 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
+
+// CORS middleware
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 
 // Guild Schema
 const GuildSchema = new mongoose.Schema({
@@ -168,32 +175,42 @@ app.get("/api/discord/:guildId/channels", async (req, res) => {
 
 // Get guild settings
 app.get("/api/guild/:id", async (req, res) => {
-  if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+  if (!req.user) return res.status(401).json({ error: "Not logged in" });
 
   try {
     const guildId = req.params.id;
+    console.log(`Fetching guild ${guildId} for user ${req.user.id}`);
 
-    const guild = req.user.guilds.find(
-      (g) => g.id === guildId && (g.permissions & 0x20)
-    );
-    if (!guild)
-      return res.status(403).json({ error: "Missing MANAGE_GUILD permission" });
+    // Check if user has MANAGE_GUILD permission in this guild
+    const userGuild = req.user.guilds?.find(g => g.id === guildId);
+    if (!userGuild) {
+      return res.status(404).json({ error: "Guild not found in user's servers" });
+    }
 
-    let record = await Guild.findOne({ guildId });
-    if (!record) {
-      record = await Guild.create({
-        guildId,
-        name: guild.name,
-        icon: guild.icon
-          ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`
-          : null,
+    // Check permissions (0x20 = MANAGE_GUILD)
+    const hasPermission = (userGuild.permissions & 0x20) === 0x20;
+    if (!hasPermission) {
+      return res.status(403).json({ 
+        error: "Missing MANAGE_GUILD permission",
+        details: "You need the 'Manage Server' permission to configure bot settings"
       });
     }
 
+    let record = await Guild.findOne({ guildId });
+    if (!record) {
+      console.log(`Creating new guild record for ${guildId}`);
+      record = await Guild.create({
+        guildId,
+        name: userGuild.name,
+        icon: userGuild.icon
+      });
+    }
+
+    console.log(`Returning guild data for ${guildId}:`, record);
     res.json(record);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to fetch guild settings" });
+    console.error("Guild fetch error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
