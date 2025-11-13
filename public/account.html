@@ -176,6 +176,20 @@ header nav a:hover {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+.input-field {
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: #0f172a;
+  color: #fff;
+  margin-top: 5px;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: #3b82f6;
+}  
 </style>
 </head>
 <body>
@@ -336,18 +350,23 @@ async function manageGuild(guildId, guildName) {
   try {
     const res = await fetch(`${API_BASE}/guild/${guildId}`, { credentials: "include" });
     if (!res.ok) throw new Error("Failed to load guild settings");
-    const guild = await res.json();
+    const guildData = await res.json();
 
-    // Fill form
-    document.getElementById("prefix").value = guild.settings?.prefix || "!";
-    document.getElementById("muteRole").value = guild.settings?.muteRole || "";
-    document.getElementById("welcomeChannel").value = guild.settings?.welcomeChannel || "";
-    document.getElementById("leaveChannel").value = guild.settings?.leaveChannel || "";
-    document.getElementById("logChannel").value = guild.settings?.logChannel || "";
+    // Debug: log the response to see actual structure
+    console.log("Guild data:", guildData);
+
+    // Fill form - handle different possible response structures
+    const settings = guildData.settings || guildData || {};
+    
+    document.getElementById("prefix").value = settings.prefix || "!";
+    document.getElementById("muteRole").value = settings.muteRole || "";
+    document.getElementById("welcomeChannel").value = settings.welcomeChannel || "";
+    document.getElementById("leaveChannel").value = settings.leaveChannel || "";
+    document.getElementById("logChannel").value = settings.logChannel || "";
 
   } catch (err) {
     console.error("Error loading guild:", err);
-    alert("Failed to load server settings.");
+    alert("Failed to load server settings. Please check if Lunov has the necessary permissions in this server.");
   }
 }
 
@@ -358,24 +377,30 @@ document.getElementById("guildSettingsForm").addEventListener("submit", async (e
 
   const payload = {
     prefix: document.getElementById("prefix").value,
-    muteRole: document.getElementById("muteRole").value,
-    welcomeChannel: document.getElementById("welcomeChannel").value,
-    leaveChannel: document.getElementById("leaveChannel").value,
-    logChannel: document.getElementById("logChannel").value,
+    muteRole: document.getElementById("muteRole").value || null,
+    welcomeChannel: document.getElementById("welcomeChannel").value || null,
+    leaveChannel: document.getElementById("leaveChannel").value || null,
+    logChannel: document.getElementById("logChannel").value || null,
   };
 
-  const res = await fetch(`${API_BASE}/guild/${selectedGuildId}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    credentials: "include",
-  });
+  try {
+    const res = await fetch(`${API_BASE}/guild/${selectedGuildId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      credentials: "include",
+    });
 
-  if (res.ok) {
-    document.getElementById("saveStatus").style.display = "block";
-    setTimeout(() => (document.getElementById("saveStatus").style.display = "none"), 2500);
-  } else {
-    alert("Failed to save settings.");
+    if (res.ok) {
+      document.getElementById("saveStatus").style.display = "block";
+      setTimeout(() => (document.getElementById("saveStatus").style.display = "none"), 2500);
+    } else {
+      const error = await res.text();
+      alert(`Failed to save settings: ${error}`);
+    }
+  } catch (err) {
+    console.error("Save error:", err);
+    alert("Failed to save settings. Please try again.");
   }
 });
 
