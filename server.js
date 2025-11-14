@@ -176,6 +176,24 @@ app.get("/api/discord/:guildId/channels", async (req, res) => {
   }
 });
 
+// Helper function to get welcome channel from bot's database
+async function getWelcomeChannelFromBot(guildId) {
+  try {
+    const db = mongoose.connection.db;
+    const welcomeData = await db.collection("guild_settings").findOne(
+      { _id: "welcome_channels" }
+    );
+    
+    if (welcomeData && welcomeData.channels && welcomeData.channels[guildId]) {
+      return welcomeData.channels[guildId];
+    }
+    return null;
+  } catch (error) {
+    console.error("Error getting welcome channel from bot database:", error);
+    return null;
+  }
+}
+
 // Get guild settings
 app.get("/api/guild/:id", async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Not logged in" });
@@ -209,41 +227,29 @@ app.get("/api/guild/:id", async (req, res) => {
       });
     }
 
-    console.log(`Returning guild data for ${guildId}:`, record);
-    res.json(record);
+    // GET EXISTING WELCOME CHANNEL FROM BOT'S DATABASE
+    const botWelcomeChannel = await getWelcomeChannelFromBot(guildId);
+    console.log(`Bot welcome channel for ${guildId}: ${botWelcomeChannel}`);
+    
+    // If bot has a welcome channel but dashboard doesn't, update dashboard
+    if (botWelcomeChannel && !record.settings.welcomeChannel) {
+      console.log(`Syncing welcome channel from bot to dashboard: ${botWelcomeChannel}`);
+      record.settings.welcomeChannel = botWelcomeChannel;
+      await record.save();
+    }
+
+    // Include bot welcome channel info in response
+    const response = {
+      ...record.toObject(),
+      botWelcomeChannel: botWelcomeChannel,
+      hasBotWelcomeChannel: !!botWelcomeChannel
+    };
+
+    console.log(`Returning guild data for ${guildId}:`, response);
+    res.json(response);
   } catch (err) {
     console.error("Guild fetch error:", err);
     res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-// Update guild settings
-app.post("/api/guild/:id", async (req, res) => {
-  if (!req.user) return res.status(401).json({ error: "Unauthorized" });
-
-  try {
-    const guildId = req.params.id;
-    const { prefix, muteRole, welcomeChannel, leaveChannel, logChannel } =
-      req.body;
-
-    await Guild.findOneAndUpdate(
-      { guildId },
-      {
-        $set: {
-          "settings.prefix": prefix,
-          "settings.muteRole": muteRole,
-          "settings.welcomeChannel": welcomeChannel,
-          "settings.leaveChannel": leaveChannel,
-          "settings.logChannel": logChannel,
-        },
-      },
-      { new: true, upsert: true }
-    );
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to update guild settings" });
   }
 });
 
@@ -253,7 +259,7 @@ app.post("/api/guild/:id/welcome-channel", async (req, res) => {
 
   try {
     const guildId = req.params.id;
-    const { welcomeChannel } = req.body;
+    let { welcomeChannel } = req.body;
 
     // Permission check
     const guild = req.user.guilds.find(
@@ -262,16 +268,16 @@ app.post("/api/guild/:id/welcome-channel", async (req, res) => {
     if (!guild)
       return res.status(403).json({ error: "Missing MANAGE_GUILD permission" });
 
-    console.log(`Attempting to save welcome channel for guild ${guildId}: ${welcomeChannel}`);
-    
-    // Get the database connection - use the same database as your bot
-    const db = mongoose.connection.db;
-    console.log(`Using database: ${db.databaseName}`);
-    
-    // List all collections to debug
-    const collections = await db.listCollections().toArray();
-    console.log('Available collections:', collections.map(c => c.name));
+    // CONVERT TO NUMBER - Same as bot does
+    if (welcomeChannel) {
+      welcomeChannel = BigInt(welcomeChannel).toString(); // Convert to same format as bot
+    }
 
+    console.log(`Saving welcome channel for guild ${guildId}: ${welcomeChannel} (type: ${typeof welcomeChannel})`);
+
+    // Get the database connection
+    const db = mongoose.connection.db;
+    
     // Save exactly like bot does
     const result = await db.collection("guild_settings").updateOne(
       { _id: "welcome_channels" },
@@ -284,30 +290,74 @@ app.post("/api/guild/:id/welcome-channel", async (req, res) => {
     );
 
     console.log(`✅ Welcome channel saved successfully!`);
-    console.log(`MongoDB result:`, result);
     
     // Verify the data was saved
     const savedData = await db.collection("guild_settings").findOne(
       { _id: "welcome_channels" }
     );
-    console.log(`Verified saved data:`, savedData);
     
     res.json({
       success: true,
       message: `Welcome channel set to ${welcomeChannel}`,
       guildId,
       welcomeChannel,
+      dataType: typeof welcomeChannel,
       savedTo: "guild_settings collection",
-      database: db.databaseName,
-      result: result
+      verified: savedData?.channels?.[guildId] === welcomeChannel
     });
   } catch (err) {
     console.error("Welcome channel save error:", err);
     res.status(500).json({ 
       error: "Failed to save welcome channel",
-      details: err.message,
-      stack: err.stack
+      details: err.message
     });
+  }
+});
+
+// Debug endpoint to see all welcome channels
+app.get("/api/debug/all-welcome-channels", async (req, res) => {
+  try {
+    const db = mongoose.connection.db;
+    
+    // Get bot welcome channels
+    const botWelcomeData = await db.collection("guild_settings").findOne(
+      { _id: "welcome_channels" }
+    );
+    
+    // Get dashboard welcome channels
+    const dashboardWelcomeData = await Guild.find({}).select("guildId name settings.welcomeChannel");
+    
+    // Create comparison
+    const comparison = {};
+    
+    if (botWelcomeData && botWelcomeData.channels) {
+      for (const [guildId, channelId] of Object.entries(botWelcomeData.channels)) {
+        const dashboardRecord = dashboardWelcomeData.find(g => g.guildId === guildId);
+        comparison[guildId] = {
+          guildId: guildId,
+          bot_welcome_channel: channelId,
+          dashboard_welcome_channel: dashboardRecord?.settings?.welcomeChannel || "Not set",
+          match: dashboardRecord?.settings?.welcomeChannel === String(channelId)
+        };
+      }
+    }
+    
+    res.json({
+      bot_welcome_channels: botWelcomeData?.channels || {},
+      dashboard_welcome_channels: dashboardWelcomeData.map(g => ({
+        guildId: g.guildId,
+        name: g.name,
+        welcomeChannel: g.settings.welcomeChannel
+      })),
+      comparison: comparison,
+      summary: {
+        total_bot_channels: botWelcomeData ? Object.keys(botWelcomeData.channels).length : 0,
+        total_dashboard_channels: dashboardWelcomeData.filter(g => g.settings.welcomeChannel).length,
+        matching_channels: Object.values(comparison).filter(c => c.match).length
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
