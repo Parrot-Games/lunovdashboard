@@ -259,10 +259,17 @@ app.post("/api/guild/:id/welcome-channel", async (req, res) => {
     if (!guild)
       return res.status(403).json({ error: "Missing MANAGE_GUILD permission" });
 
-    // Get the database connection
-    const db = mongoose.connection.db;
+    console.log(`Attempting to save welcome channel for guild ${guildId}: ${welcomeChannel}`);
     
-    // Save exactly like bot does - using the same collection and structure
+    // Get the database connection - use the same database as your bot
+    const db = mongoose.connection.db;
+    console.log(`Using database: ${db.databaseName}`);
+    
+    // List all collections to debug
+    const collections = await db.listCollections().toArray();
+    console.log('Available collections:', collections.map(c => c.name));
+
+    // Save exactly like bot does
     const result = await db.collection("guild_settings").updateOne(
       { _id: "welcome_channels" },
       { 
@@ -273,53 +280,56 @@ app.post("/api/guild/:id/welcome-channel", async (req, res) => {
       { upsert: true }
     );
 
-    console.log(`Welcome channel saved for guild ${guildId}: ${welcomeChannel}`);
+    console.log(`✅ Welcome channel saved successfully!`);
     console.log(`MongoDB result:`, result);
+    
+    // Verify the data was saved
+    const savedData = await db.collection("guild_settings").findOne(
+      { _id: "welcome_channels" }
+    );
+    console.log(`Verified saved data:`, savedData);
     
     res.json({
       success: true,
       message: `Welcome channel set to ${welcomeChannel}`,
       guildId,
       welcomeChannel,
-      savedTo: "guild_settings collection (bot format)"
+      savedTo: "guild_settings collection",
+      database: db.databaseName,
+      result: result
     });
   } catch (err) {
     console.error("Welcome channel save error:", err);
-    res.status(500).json({ error: "Failed to save welcome channel: " + err.message });
+    res.status(500).json({ 
+      error: "Failed to save welcome channel",
+      details: err.message,
+      stack: err.stack
+    });
   }
 });
 
 // Debug endpoint to check welcome channels in bot format
-app.get("/api/debug/welcome-channels", async (req, res) => {
+app.get("/api/debug/mongodb-details", async (req, res) => {
   try {
     const db = mongoose.connection.db;
     
-    // Check bot-style welcome channels
-    const botWelcomeData = await db.collection("guild_settings").findOne(
-      { _id: "welcome_channels" }
-    );
+    // Get database info
+    const adminDb = db.admin();
+    const serverInfo = await adminDb.serverStatus();
     
-    // Check dashboard-style welcome channels
-    const dashboardWelcomeData = await Guild.find({ 
-      "settings.welcomeChannel": { $ne: "" } 
-    }).select("guildId settings.welcomeChannel");
+    // List all databases
+    const admin = mongoose.connection.getClient().db().admin();
+    const databases = await admin.listDatabases();
+    
+    // Current database collections
+    const collections = await db.listCollections().toArray();
     
     res.json({
-      bot_format: {
-        collection: "guild_settings",
-        document_id: "welcome_channels", 
-        data: botWelcomeData || { message: "No welcome channels set in bot format" },
-        guildCount: botWelcomeData ? Object.keys(botWelcomeData.channels || {}).length : 0
-      },
-      dashboard_format: {
-        collection: "guilds",
-        data: dashboardWelcomeData,
-        guildCount: dashboardWelcomeData.length
-      },
-      connection: {
-        database: mongoose.connection.db.databaseName,
-        state: mongoose.connection.readyState
-      }
+      connected_database: db.databaseName,
+      available_databases: databases.databases.map(d => d.name),
+      collections_in_current_db: collections.map(c => c.name),
+      server_version: serverInfo.version,
+      connection_string: process.env.MONGO_URI ? process.env.MONGO_URI.substring(0, 50) + '...' : 'Not set'
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
