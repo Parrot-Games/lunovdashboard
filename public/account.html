@@ -380,8 +380,30 @@ async function manageGuild(guildId, guildName) {
     const guildData = await res.json();
     console.log("Guild settings loaded:", guildData);
 
+    // Determine which welcome channel to show (dashboard or bot's)
+    const welcomeChannelValue = guildData.settings?.welcomeChannel || guildData.botWelcomeChannel || '';
+
+    // SHOW NOTE IF BOT HAS DIFFERENT WELCOME CHANNEL
+    const welcomeNote = guildData.botWelcomeChannel && guildData.settings?.welcomeChannel !== guildData.botWelcomeChannel 
+      ? `<div style="background: #1e40af; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
+           <i class="fas fa-info-circle"></i> 
+           Bot has welcome channel set to: <strong>${guildData.botWelcomeChannel}</strong>
+         </div>`
+      : '';
+
+    // SHOW CURRENT WELCOME CHANNEL INFO
+    const currentWelcomeInfo = guildData.botWelcomeChannel || guildData.settings?.welcomeChannel 
+      ? `<div style="background: #166534; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
+           <i class="fas fa-check-circle"></i> 
+           Current welcome channel: <strong>${guildData.botWelcomeChannel || guildData.settings?.welcomeChannel}</strong>
+           ${guildData.botWelcomeChannel && guildData.settings?.welcomeChannel !== guildData.botWelcomeChannel ? ' (Set via bot command)' : ' (Set via dashboard)'}
+         </div>`
+      : '';
+
     // Restore form with loaded data
     form.innerHTML = `
+      ${currentWelcomeInfo}
+      ${welcomeNote}
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
         <div>
           <label>Prefix</label><br>
@@ -393,7 +415,8 @@ async function manageGuild(guildId, guildName) {
         </div>
         <div>
           <label>Welcome Channel ID</label><br>
-          <input type="text" id="welcomeChannel" class="input-field" value="${guildData.settings?.welcomeChannel || ''}">
+          <input type="text" id="welcomeChannel" class="input-field" value="${welcomeChannelValue}" placeholder="Enter channel ID">
+          ${guildData.botWelcomeChannel ? `<small style="color: #94a3b8; display: block; margin-top: 5px;">Bot database: ${guildData.botWelcomeChannel}</small>` : ''}
         </div>
         <div>
           <label>Leave Channel ID</label><br>
@@ -405,7 +428,7 @@ async function manageGuild(guildId, guildName) {
         </div>
       </div>
       <br>
-      <button type="submit" class="action-btn">Save Settings</button>
+      <button type="submit" class="action-btn">💾 Save Settings</button>
       <button type="button" class="action-btn" style="background:#64748b;" id="closeSettings">Close</button>
     `;
 
