@@ -125,6 +125,22 @@ app.get("/api/me", (req, res) => {
   res.json(req.user);
 });
 
+// total server counts 
+app.get("/api/bot/stats", async (req, res) => {
+  try {
+    const botGuilds = await fetch("https://discord.com/api/v10/users/@me/guilds", {
+      headers: { Authorization: `Bot ${process.env.BOT_TOKEN}` },
+    }).then(r => r.json());
+
+    res.json({
+      serverCount: Array.isArray(botGuilds) ? botGuilds.length : 0
+    });
+  } catch (err) {
+    console.error("Stats error:", err);
+    res.json({ serverCount: 0 });
+  }
+});
+
 // Get mutual guilds
 app.get("/api/guilds", async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Not logged in" });
