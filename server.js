@@ -45,6 +45,7 @@ const GuildSchema = new mongoose.Schema({
     prefix: { type: String, default: "!" },
     muteRole: { type: String, default: "" },
     welcomeChannel: { type: String, default: "" },
+    chatLevelChannel: { type: String, default: "" },
     leaveChannel: { type: String, default: "" },
     logChannel: { type: String, default: "" },
   },
@@ -65,7 +66,8 @@ app.use(
     saveUninitialized: false,
     proxy: true,
     cookie: {
-      secure: true,
+      // only secure in production (https). Makes local development easier.
+      secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
       sameSite: "lax",
       maxAge: 1000 * 60 * 60 * 24 * 7,
@@ -109,10 +111,12 @@ app.get(
 );
 
 // Logout
-app.get("/api/auth/logout", (req, res) => {
-  req.logout(err => {
-    if (err) return res.status(500).json({ error: "Failed to logout" });
+app.get("/api/auth/logout", (req, res, next) => {
+  // passport >=0.6 requires a callback
+  req.logout(function(err) {
+    if (err) return next(err);
     req.session.destroy(() => {
+      // clear cookie with same name used by express-session
       res.clearCookie("connect.sid");
       res.json({ success: true });
     });
@@ -128,9 +132,10 @@ app.get("/api/me", (req, res) => {
 // total server counts 
 app.get("/api/bot/stats", async (req, res) => {
   try {
-    const botGuilds = await fetch("https://discord.com/api/v10/users/@me/guilds", {
+    const r = await fetch("https://discord.com/api/v10/users/@me/guilds", {
       headers: { Authorization: `Bot ${process.env.BOT_TOKEN}` },
-    }).then(r => r.json());
+    });
+    const botGuilds = await r.json();
 
     res.json({
       serverCount: Array.isArray(botGuilds) ? botGuilds.length : 0
@@ -141,15 +146,28 @@ app.get("/api/bot/stats", async (req, res) => {
   }
 });
 
+// helper to safely check MANAGE_GUILD permission using BigInt (handles string bitfields)
+function hasManageGuildPermission(permValue) {
+  try {
+    const bits = typeof permValue === 'string' ? BigInt(permValue) : BigInt(permValue || 0);
+    return (bits & 0x20n) === 0x20n;
+  } catch (err) {
+    return false;
+  }
+}
+
 // Get mutual guilds
 app.get("/api/guilds", async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Not logged in" });
 
   try {
-    const userGuilds = req.user.guilds;
-    const botGuilds = await fetch("https://discord.com/api/v10/users/@me/guilds", {
+    const userGuilds = req.user.guilds || [];
+    const r = await fetch("https://discord.com/api/v10/users/@me/guilds", {
       headers: { Authorization: `Bot ${process.env.BOT_TOKEN}` },
-    }).then((r) => r.json());
+    });
+    const botGuilds = await r.json();
+
+    if (!Array.isArray(botGuilds)) return res.status(500).json({ error: 'Failed to fetch bot guilds' });
 
     const mutualGuilds = userGuilds.filter((g) =>
       botGuilds.find((b) => b.id === g.id)
@@ -169,21 +187,23 @@ app.get("/api/discord/:guildId/channels", async (req, res) => {
   try {
     const guildId = req.params.guildId;
 
-    // Permission check
+    // Permission check: use BigInt safe checker
     const guild = req.user.guilds.find(
-      (g) => g.id === guildId && (g.permissions & 0x20) // MANAGE_GUILD
+      (g) => g.id === guildId && hasManageGuildPermission(g.permissions)
     );
     if (!guild) return res.status(403).json({ error: "Missing permissions" });
 
     // Fetch channels from Discord API
-    const channels = await fetch(
+    const r = await fetch(
       `https://discord.com/api/v10/guilds/${guildId}/channels`,
       {
         headers: {
           Authorization: `Bot ${process.env.BOT_TOKEN}`,
         },
       }
-    ).then((r) => r.json());
+    );
+
+    const channels = await r.json();
 
     res.json(channels);
   } catch (err) {
@@ -199,13 +219,27 @@ async function getWelcomeChannelFromBot(guildId) {
     const welcomeData = await db.collection("guild_settings").findOne(
       { _id: "welcome_channels" }
     );
-    
     if (welcomeData && welcomeData.channels && welcomeData.channels[guildId]) {
       return welcomeData.channels[guildId];
     }
     return null;
   } catch (error) {
     console.error("Error getting welcome channel from bot database:", error);
+    return null;
+  }
+}
+
+// Helper function to get chatLevel channel from bot's database
+async function getChatLevelChannelFromBot(guildId) {
+  try {
+    const db = mongoose.connection.db;
+    const data = await db.collection("guild_settings").findOne(
+      { _id: "chatLevel_channels" }
+    );
+    if (data && data.channels && data.channels[guildId]) return data.channels[guildId];
+    return null;
+  } catch (error) {
+    console.error("Error getting chatLevel channel from bot database:", error);
     return null;
   }
 }
@@ -224,8 +258,8 @@ app.get("/api/guild/:id", async (req, res) => {
       return res.status(404).json({ error: "Guild not found in user's servers" });
     }
 
-    // Check permissions (0x20 = MANAGE_GUILD)
-    const hasPermission = (userGuild.permissions & 0x20) === 0x20;
+    // Check permissions (0x20 = MANAGE_GUILD) using BigInt-safe helper
+    const hasPermission = hasManageGuildPermission(userGuild.permissions);
     if (!hasPermission) {
       return res.status(403).json({ 
         error: "Missing MANAGE_GUILD permission",
@@ -246,19 +280,32 @@ app.get("/api/guild/:id", async (req, res) => {
     // GET EXISTING WELCOME CHANNEL FROM BOT'S DATABASE
     const botWelcomeChannel = await getWelcomeChannelFromBot(guildId);
     console.log(`Bot welcome channel for ${guildId}: ${botWelcomeChannel}`);
+
+    // GET EXISTING CHATLEVEL CHANNEL FROM BOT'S DATABASE
+    const botChatLevelChannel = await getChatLevelChannelFromBot(guildId);
+    console.log(`Bot chatLevel channel for ${guildId}: ${botChatLevelChannel}`);
     
     // If bot has a welcome channel but dashboard doesn't, update dashboard
     if (botWelcomeChannel && !record.settings.welcomeChannel) {
       console.log(`Syncing welcome channel from bot to dashboard: ${botWelcomeChannel}`);
-      record.settings.welcomeChannel = botWelcomeChannel;
+      record.settings.welcomeChannel = String(botWelcomeChannel);
       await record.save();
     }
 
-    // Include bot welcome channel info in response
+    // If bot has a chatLevel channel but dashboard doesn't, update dashboard
+    if (botChatLevelChannel && !record.settings.chatLevelChannel) {
+      console.log(`Syncing chatLevel channel from bot to dashboard: ${botChatLevelChannel}`);
+      record.settings.chatLevelChannel = String(botChatLevelChannel);
+      await record.save();
+    }
+
+    // Include bot welcome & chatLevel info in response
     const response = {
       ...record.toObject(),
       botWelcomeChannel: botWelcomeChannel,
-      hasBotWelcomeChannel: !!botWelcomeChannel
+      hasBotWelcomeChannel: !!botWelcomeChannel,
+      botChatLevelChannel: botChatLevelChannel,
+      hasBotChatLevelChannel: !!botChatLevelChannel
     };
 
     console.log(`Returning guild data for ${guildId}:`, response);
@@ -268,6 +315,16 @@ app.get("/api/guild/:id", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// Generic helper to safely convert input to BigInt string; returns null on invalid
+function safeBigIntString(value) {
+  if (value === undefined || value === null || value === '') return null;
+  try {
+    return BigInt(String(value)).toString();
+  } catch (err) {
+    return null;
+  }
+}
 
 // Set Welcome Channel
 app.post("/api/guild/:id/welcome-channel", async (req, res) => {
@@ -279,15 +336,16 @@ app.post("/api/guild/:id/welcome-channel", async (req, res) => {
 
     // Permission check
     const guild = req.user.guilds.find(
-      (g) => g.id === guildId && (g.permissions & 0x20)
+      (g) => g.id === guildId && hasManageGuildPermission(g.permissions)
     );
     if (!guild)
       return res.status(403).json({ error: "Missing MANAGE_GUILD permission" });
 
-    // CONVERT TO NUMBER - Same as bot does
-    if (welcomeChannel) {
-      welcomeChannel = BigInt(welcomeChannel).toString(); // Convert to same format as bot
-    }
+    // Safe conversion
+    const safeId = safeBigIntString(welcomeChannel);
+    if (welcomeChannel && !safeId) return res.status(400).json({ error: 'Invalid channel id' });
+
+    welcomeChannel = safeId;
 
     console.log(`Saving welcome channel for guild ${guildId}: ${welcomeChannel} (type: ${typeof welcomeChannel})`);
 
@@ -295,7 +353,7 @@ app.post("/api/guild/:id/welcome-channel", async (req, res) => {
     const db = mongoose.connection.db;
     
     // Save exactly like bot does
-    const result = await db.collection("guild_settings").updateOne(
+    await db.collection("guild_settings").updateOne(
       { _id: "welcome_channels" },
       { 
         $set: { 
@@ -304,6 +362,13 @@ app.post("/api/guild/:id/welcome-channel", async (req, res) => {
       },
       { upsert: true }
     );
+
+    // Also update dashboard (single source for dashboard view)
+    const record = await Guild.findOne({ guildId });
+    if (record) {
+      record.settings.welcomeChannel = welcomeChannel || "";
+      await record.save();
+    }
 
     console.log(`✅ Welcome channel saved successfully!`);
     
@@ -330,6 +395,75 @@ app.post("/api/guild/:id/welcome-channel", async (req, res) => {
   }
 });
 
+// Set chatLevel Channel (fixed: safe BigInt, save to bot DB and dashboard schema)
+app.post("/api/guild/:id/chatLevel-channel", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const guildId = req.params.id;
+    let { chatLevelChannel } = req.body;
+
+    // Permission check
+    const guild = req.user.guilds.find(
+      (g) => g.id === guildId && hasManageGuildPermission(g.permissions)
+    );
+    if (!guild)
+      return res.status(403).json({ error: "Missing MANAGE_GUILD permission" });
+
+    // Safe conversion
+    const safeId = safeBigIntString(chatLevelChannel);
+    if (chatLevelChannel && !safeId) return res.status(400).json({ error: 'Invalid channel id' });
+
+    chatLevelChannel = safeId;
+
+    console.log(`Saving chatLevel channel for guild ${guildId}: ${chatLevelChannel} (type: ${typeof chatLevelChannel})`);
+
+    // Get the database connection
+    const db = mongoose.connection.db;
+
+    // Save in bot format (separate document)
+    await db.collection("guild_settings").updateOne(
+      { _id: "chatLevel_channels" },
+      { 
+        $set: { 
+          [`channels.${guildId}`]: chatLevelChannel 
+        } 
+      },
+      { upsert: true }
+    );
+
+    // Also update dashboard record
+    const record = await Guild.findOne({ guildId });
+    if (record) {
+      record.settings.chatLevelChannel = chatLevelChannel || "";
+      await record.save();
+    }
+
+    console.log(`✅ chatLevel channel saved successfully!`);
+
+    // Verify the data was saved
+    const savedData = await db.collection("guild_settings").findOne(
+      { _id: "chatLevel_channels" }
+    );
+
+    res.json({
+      success: true,
+      message: `chatLevel channel set to ${chatLevelChannel}`,
+      guildId,
+      chatLevelChannel,
+      dataType: typeof chatLevelChannel,
+      savedTo: "guild_settings collection",
+      verified: savedData?.channels?.[guildId] === chatLevelChannel
+    });
+  } catch (err) {
+    console.error("chatLevel channel save error:", err);
+    res.status(500).json({ 
+      error: "Failed to save chatLevel channel",
+      details: err.message
+    });
+  }
+});
+
 // Debug endpoint to see all welcome channels
 app.get("/api/debug/all-welcome-channels", async (req, res) => {
   try {
@@ -341,7 +475,7 @@ app.get("/api/debug/all-welcome-channels", async (req, res) => {
     );
     
     // Get dashboard welcome channels
-    const dashboardWelcomeData = await Guild.find({}).select("guildId name settings.welcomeChannel");
+    const dashboardWelcomeData = await Guild.find({}).select("guildId name settings.welcomeChannel settings.chatLevelChannel");
     
     // Create comparison
     const comparison = {};
@@ -363,7 +497,8 @@ app.get("/api/debug/all-welcome-channels", async (req, res) => {
       dashboard_welcome_channels: dashboardWelcomeData.map(g => ({
         guildId: g.guildId,
         name: g.name,
-        welcomeChannel: g.settings.welcomeChannel
+        welcomeChannel: g.settings.welcomeChannel,
+        chatLevelChannel: g.settings.chatLevelChannel
       })),
       comparison: comparison,
       summary: {
@@ -429,11 +564,11 @@ app.get("/api/debug/mongodb", async (req, res) => {
   }
 });
 
-// Serve static frontend
+// Serve static frontend (only for non-API routes)
 app.use(express.static(path.join(__dirname, "public")));
 
-// Fallback for React/SPA routing
-app.get("*", (req, res) => {
+// Fallback for React/SPA routing: exclude /api routes from this handler
+app.get(/^\/(?!api).*/, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
