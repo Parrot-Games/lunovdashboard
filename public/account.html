@@ -486,20 +486,16 @@
                         <input type="text" id="prefix" class="input-field" placeholder="!" style="width:100%;padding:8px;border-radius:8px;border:none;background:#0f172a;color:#fff;">
                     </div>
                     <div>
-                        <label>Mute Role ID</label><br>
-                        <input type="text" id="muteRole" class="input-field" placeholder="Role ID">
-                    </div>
-                    <div>
                         <label>Welcome Channel ID</label><br>
                         <input type="text" id="welcomeChannel" class="input-field" placeholder="Channel ID">
                     </div>
                     <div>
-                        <label>Leave Channel ID</label><br>
-                        <input type="text" id="leaveChannel" class="input-field" placeholder="Channel ID">
+                        <label>Chat Level Channel ID</label><br>
+                        <input type="text" id="chatLevelChannel" class="input-field" placeholder="Channel ID">
                     </div>
                     <div>
-                        <label>Log Channel ID</label><br>
-                        <input type="text" id="logChannel" class="input-field" placeholder="Channel ID">
+                        <label>demon hunt Channel ID</label><br>
+                        <input type="text" id="demonHuntChannel" class="input-field" placeholder="Channel ID">
                     </div>
                 </div>
                 <br>
@@ -678,21 +674,18 @@
                         <input type="text" id="prefix" class="input-field" value="${guildData.settings?.prefix || '!'}">
                     </div>
                     <div>
-                        <label>Mute Role ID</label><br>
-                        <input type="text" id="muteRole" class="input-field" value="${guildData.settings?.muteRole || ''}">
-                    </div>
-                    <div>
                         <label>Welcome Channel ID</label><br>
                         <input type="text" id="welcomeChannel" class="input-field" value="${welcomeChannelValue}" placeholder="Enter channel ID">
                         ${guildData.botWelcomeChannel ? `<small style="color: #94a3b8; display: block; margin-top: 5px;">Bot database: ${guildData.botWelcomeChannel}</small>` : ''}
                     </div>
                     <div>
-                        <label>Leave Channel ID</label><br>
-                        <input type="text" id="leaveChannel" class="input-field" value="${guildData.settings?.leaveChannel || ''}">
+                        <label>Chat Level Channel ID</label><br>
+                        <input type="text" id="chatLevelChannel" class="input-field" value="${guildData.settings?.chatLevelChannel || guildData.botChatLevelChannel || ''}" placeholder="Channel ID">
+                        ${guildData.botChatLevelChannel ? `<small style="color:#94a3b8; display:block; margin-top:5px;">Bot database: ${guildData.botChatLevelChannel}</small>` : ""}
                     </div>
                     <div>
-                        <label>Log Channel ID</label><br>
-                        <input type="text" id="logChannel" class="input-field" value="${guildData.settings?.logChannel || ''}">
+                        <label>demon hunt Channel ID</label><br>
+                        <input type="text" id="demonHuntChannel" class="input-field" placeholder="Channel ID">
                     </div>
                 </div>
                 <br>
@@ -718,10 +711,9 @@
         if (!selectedGuildId) return;
 
         const prefix = document.getElementById("prefix").value;
-        const muteRole = document.getElementById("muteRole").value || null;
         const welcomeChannel = document.getElementById("welcomeChannel").value || null;
-        const leaveChannel = document.getElementById("leaveChannel").value || null;
-        const logChannel = document.getElementById("logChannel").value || null;
+        const chatLevelChannel = document.getElementById("chatLevelChannel").value || null;
+        const demonHuntChannel = document.getElementById("demonHuntChannel").value || null;
 
         try {
             // Save general settings to dashboard database
@@ -730,10 +722,9 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     prefix,
-                    muteRole,
                     welcomeChannel,
-                    leaveChannel,
-                    logChannel
+                    chatLevelChannel,
+                    demonHuntChannel
                 }),
                 credentials: "include",
             });
@@ -752,6 +743,20 @@
                 }
             }
 
+            // SPECIAL: Save chat level channel exactly like bot does
+            if (chatLevelChannel) {
+                const chatLevelRes = await fetch(`${API_BASE}/guild/${selectedGuildId}/chatLevel-channel`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ chatLevelChannel }),
+                    credentials: "include",
+                });
+
+                if (!chatLevelRes.ok) {
+                    throw new Error("Failed to save chat level channel to bot database");
+                }
+            }
+
             if (generalRes.ok) {
                 document.getElementById("saveStatus").style.display = "block";
                 document.getElementById("saveStatus").textContent = "✅ Settings saved! (Both dashboard and bot)";
@@ -766,11 +771,6 @@
             console.error("Save error:", err);
             alert("Failed to save settings. Please try again.");
         }
-    });
-
-    // Close settings panel
-    document.getElementById("closeSettings").addEventListener("click", () => {
-        document.getElementById("serverSettingsPanel").style.display = "none";
     });
 </script>
 </body>
