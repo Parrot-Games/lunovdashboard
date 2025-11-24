@@ -244,6 +244,21 @@ async function getChatLevelChannelFromBot(guildId) {
   }
 }
 
+// Helper function to get demon hunt channel from bot's database
+async function getDemonHuntChannelFromBot(guildId) {
+  try {
+    const db = mongoose.connection.db;
+    const data = await db.collection("guild_settings").findOne(
+      { _id: "demon_hunt_channels" }
+    );
+    if (data && data.channels && data.channels[guildId]) return data.channels[guildId];
+    return null;
+  } catch (error) {
+    console.error("Error getting demon hunt channel from bot database:", error);
+    return null;
+  }
+}
+
 // Get guild settings
 app.get("/api/guild/:id", async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Not logged in" });
@@ -284,6 +299,10 @@ app.get("/api/guild/:id", async (req, res) => {
     // GET EXISTING CHATLEVEL CHANNEL FROM BOT'S DATABASE
     const botChatLevelChannel = await getChatLevelChannelFromBot(guildId);
     console.log(`Bot chatLevel channel for ${guildId}: ${botChatLevelChannel}`);
+
+    // GET EXISTING DEMON HUNT CHANNEL FROM BOT'S DATABASE
+    const botDemonHuntChannel = await getDemonHuntChannelFromBot(guildId);
+    console.log(`Bot demon hunt channel for ${guildId}: ${botDemonHuntChannel}`);
     
     // If bot has a welcome channel but dashboard doesn't, update dashboard
     if (botWelcomeChannel && !record.settings.welcomeChannel) {
@@ -299,13 +318,22 @@ app.get("/api/guild/:id", async (req, res) => {
       await record.save();
     }
 
-    // Include bot welcome & chatLevel info in response
+    // If bot has a demon hunt channel but dashboard doesn't, update dashboard
+    if (botDemonHuntChannel && !record.settings.demonHuntChannel) {
+      console.log(`Syncing demon hunt channel from bot to dashboard: ${botDemonHuntChannel}`);
+      record.settings.demonHuntChannel = String(botDemonHuntChannel);
+      await record.save();
+    }
+
+    // Include bot welcome, chatLevel & demon hunt info in response
     const response = {
       ...record.toObject(),
       botWelcomeChannel: botWelcomeChannel,
       hasBotWelcomeChannel: !!botWelcomeChannel,
       botChatLevelChannel: botChatLevelChannel,
-      hasBotChatLevelChannel: !!botChatLevelChannel
+      hasBotChatLevelChannel: !!botChatLevelChannel,
+      botDemonHuntChannel: botDemonHuntChannel,
+      hasBotDemonHuntChannel: !!botDemonHuntChannel
     };
 
     console.log(`Returning guild data for ${guildId}:`, response);
@@ -459,6 +487,75 @@ app.post("/api/guild/:id/chatLevel-channel", async (req, res) => {
     console.error("chatLevel channel save error:", err);
     res.status(500).json({ 
       error: "Failed to save chatLevel channel",
+      details: err.message
+    });
+  }
+});
+
+// Set Demon Hunt Channel
+app.post("/api/guild/:id/demonhunt-channel", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const guildId = req.params.id;
+    let { demonHuntChannel } = req.body;
+
+    // Permission check
+    const guild = req.user.guilds.find(
+      (g) => g.id === guildId && hasManageGuildPermission(g.permissions)
+    );
+    if (!guild)
+      return res.status(403).json({ error: "Missing MANAGE_GUILD permission" });
+
+    // Safe conversion
+    const safeId = safeBigIntString(demonHuntChannel);
+    if (demonHuntChannel && !safeId) return res.status(400).json({ error: 'Invalid channel id' });
+
+    demonHuntChannel = safeId;
+
+    console.log(`Saving demon hunt channel for guild ${guildId}: ${demonHuntChannel} (type: ${typeof demonHuntChannel})`);
+
+    // Get the database connection
+    const db = mongoose.connection.db;
+
+    // Save in bot format (separate document)
+    await db.collection("guild_settings").updateOne(
+      { _id: "demon_hunt_channels" },
+      { 
+        $set: { 
+          [`channels.${guildId}`]: demonHuntChannel 
+        } 
+      },
+      { upsert: true }
+    );
+
+    // Also update dashboard record
+    const record = await Guild.findOne({ guildId });
+    if (record) {
+      record.settings.demonHuntChannel = demonHuntChannel || "";
+      await record.save();
+    }
+
+    console.log(`✅ Demon Hunt channel saved successfully!`);
+
+    // Verify the data was saved
+    const savedData = await db.collection("guild_settings").findOne(
+      { _id: "demon_hunt_channels" }
+    );
+
+    res.json({
+      success: true,
+      message: `Demon Hunt channel set to ${demonHuntChannel}`,
+      guildId,
+      demonHuntChannel,
+      dataType: typeof demonHuntChannel,
+      savedTo: "guild_settings collection",
+      verified: savedData?.channels?.[guildId] === demonHuntChannel
+    });
+  } catch (err) {
+    console.error("Demon Hunt channel save error:", err);
+    res.status(500).json({ 
+      error: "Failed to save demon hunt channel",
       details: err.message
     });
   }
