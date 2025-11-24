@@ -661,7 +661,7 @@
         const form = document.getElementById("guildSettingsForm");
         const welcomeChannelValue = guildData.settings?.welcomeChannel || guildData.botWelcomeChannel || '';
         const chatLevelValue = guildData.settings?.chatLevelChannel || guildData.botChatLevelChannel || '';
-        const demonHuntValue = guildData.settings?.demonHuntChannel || '';
+        const demonHuntValue = guildData.settings?.demonHuntChannel || guildData.botDemonHuntChannel || '';
 
         form.innerHTML = `
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
@@ -683,7 +683,7 @@
                 <div>
                     <label>Demon Hunt Channel ID</label><br>
                     <input type="text" id="demonHuntChannel" class="input-field" value="${demonHuntValue}" placeholder="Channel ID">
-                    <small style="color: #94a3b8; display: block; margin-top: 5px;">Note: May require separate endpoint</small>
+                    ${guildData.botDemonHuntChannel ? `<small style="color:#94a3b8; display:block; margin-top:5px;">Bot database: ${guildData.botDemonHuntChannel}</small>` : ""}
                 </div>
             </div>
             <br>
@@ -741,7 +741,8 @@
 
         const welcomeChannel = document.getElementById("welcomeChannel").value.trim() || null;
         const chatLevelChannel = document.getElementById("chatLevelChannel").value.trim() || null;
-        // Note: Prefix and demonHuntChannel may not have endpoints yet
+        const demonHuntChannel = document.getElementById("demonHuntChannel").value.trim() || null;
+        // Note: Prefix may not have endpoints yet
 
         const saveStatus = document.getElementById("saveStatus");
         const submitBtn = e.target.querySelector('button[type="submit"]');
@@ -803,6 +804,30 @@
                     }
                 } catch (err) {
                     errors.push(`Chat Level Channel: ${err.message}`);
+                }
+            }
+
+            // Save demon hunt channel
+            if (demonHuntChannel) {
+                totalOperations++;
+                try {
+                    const demonHuntRes = await fetch(`${API_BASE}/guild/${selectedGuildId}/demonhunt-channel`, {
+                        method: "POST", 
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ demonHuntChannel }),
+                        credentials: "include",
+                    });
+                
+                    if (demonHuntRes.ok) {
+                        successCount++;
+                        console.log('Demon hunt channel saved successfully');
+                    } else {
+                        const errorText = await demonHuntRes.text();
+                        errors.push(`Demon Hunt Channel: ${errorText}`);
+                        console.error('Demon hunt channel save failed:', demonHuntRes.status, errorText);
+                    }
+                } catch (err) {
+                    errors.push(`Demon Hunt Channel: ${err.message}`);
                 }
             }
 
