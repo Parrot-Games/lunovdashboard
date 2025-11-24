@@ -574,7 +574,7 @@
                     <div class="server-card">
                         <img src="https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png?size=128" alt="${g.name}">
                         <h4>${g.name}</h4>
-                        <button class="manage-btn" onclick="manageGuild('${g.id}', '${g.name}')">Manage</button>
+                        <button class="manage-btn" onclick="manageGuild('${g.id}', '${g.name.replace(/'/g, "\\'")}')">Manage</button>
                     </div>
                 `).join('')
                 : '<p>No mutual servers found.</p>';
@@ -627,6 +627,11 @@
             console.log(`Response status: ${res.status}`);
             
             if (!res.ok) {
+                if (res.status === 404) {
+                    // Server not found in dashboard, show default form
+                    showDefaultSettingsForm(guildName);
+                    return;
+                }
                 const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
                 console.error('API Error:', errorData);
                 
@@ -634,8 +639,6 @@
                     throw new Error("Please login again");
                 } else if (res.status === 403) {
                     throw new Error("You need 'Manage Server' permission to configure bot settings");
-                } else if (res.status === 404) {
-                    throw new Error("Server not found");
                 } else {
                     throw new Error(errorData.error || `Failed to load settings (${res.status})`);
                 }
@@ -644,124 +647,198 @@
             const guildData = await res.json();
             console.log("Guild settings loaded:", guildData);
 
-            // Determine which welcome channel to show (dashboard or bot's)
-            const welcomeChannelValue = guildData.settings?.welcomeChannel || guildData.botWelcomeChannel || '';
-
-            // SHOW NOTE IF BOT HAS DIFFERENT WELCOME CHANNEL
-            const welcomeNote = guildData.botWelcomeChannel && guildData.settings?.welcomeChannel !== guildData.botWelcomeChannel 
-                ? `<div style="background: #1e40af; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
-                    <i class="fas fa-info-circle"></i> 
-                    Bot has welcome channel set to: <strong>${guildData.botWelcomeChannel}</strong>
-                    </div>`
-                : '';
-
-            // SHOW CURRENT WELCOME CHANNEL INFO
-            const currentWelcomeInfo = guildData.botWelcomeChannel || guildData.settings?.welcomeChannel 
-                ? `<div style="background: #166534; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
-                    <i class="fas fa-check-circle"></i> 
-                    Current welcome channel: <strong>${guildData.botWelcomeChannel || guildData.settings?.welcomeChannel}</strong>
-                    ${guildData.botWelcomeChannel && guildData.settings?.welcomeChannel !== guildData.botWelcomeChannel ? ' (Set via bot command)' : ' (Set via dashboard)'}
-                    </div>`
-                : '';
-
-            // Restore form with loaded data
-            form.innerHTML = `
-                ${currentWelcomeInfo}
-                ${welcomeNote}
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
-                    <div>
-                        <label>Prefix</label><br>
-                        <input type="text" id="prefix" class="input-field" value="${guildData.settings?.prefix || '!'}">
-                    </div>
-                    <div>
-                        <label>Welcome Channel ID</label><br>
-                        <input type="text" id="welcomeChannel" class="input-field" value="${welcomeChannelValue}" placeholder="Enter channel ID">
-                        ${guildData.botWelcomeChannel ? `<small style="color: #94a3b8; display: block; margin-top: 5px;">Bot database: ${guildData.botWelcomeChannel}</small>` : ''}
-                    </div>
-                    <div>
-                        <label>Chat Level Channel ID</label><br>
-                        <input type="text" id="chatLevelChannel" class="input-field" value="${guildData.settings?.chatLevelChannel || guildData.botChatLevelChannel || ''}" placeholder="Channel ID">
-                        ${guildData.botChatLevelChannel ? `<small style="color:#94a3b8; display:block; margin-top:5px;">Bot database: ${guildData.botChatLevelChannel}</small>` : ""}
-                    </div>
-                    <div>
-                        <label>demon hunt Channel ID</label><br>
-                        <input type="text" id="demonHuntChannel" class="input-field" placeholder="Channel ID">
-                    </div>
-                </div>
-                <br>
-                <button type="submit" class="action-btn">💾 Save Settings</button>
-                <button type="button" class="action-btn" style="background:#64748b;" id="closeSettings">Close</button>
-            `;
-
-            // Re-attach event listeners
-            document.getElementById('closeSettings').addEventListener('click', () => {
-                document.getElementById("serverSettingsPanel").style.display = "none";
-            });
+            // Show the form with loaded data
+            showSettingsForm(guildData, guildName);
 
         } catch (err) {
             console.error("Error loading guild:", err);
-            form.innerHTML = originalHTML;
-            alert(`Error: ${err.message}`);
+            // Show default form on error
+            showDefaultSettingsForm(guildName);
         }
     }
 
-    // Save guild settings - CORRECTED VERSION
+    function showSettingsForm(guildData, guildName) {
+        const form = document.getElementById("guildSettingsForm");
+        const welcomeChannelValue = guildData.settings?.welcomeChannel || guildData.botWelcomeChannel || '';
+        const chatLevelValue = guildData.settings?.chatLevelChannel || guildData.botChatLevelChannel || '';
+        const demonHuntValue = guildData.settings?.demonHuntChannel || '';
+
+        form.innerHTML = `
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+                <div>
+                    <label>Prefix</label><br>
+                    <input type="text" id="prefix" class="input-field" value="${guildData.settings?.prefix || '!'}">
+                    <small style="color: #94a3b8; display: block; margin-top: 5px;">Note: Prefix changes may require bot command</small>
+                </div>
+                <div>
+                    <label>Welcome Channel ID</label><br>
+                    <input type="text" id="welcomeChannel" class="input-field" value="${welcomeChannelValue}" placeholder="Enter channel ID">
+                    ${guildData.botWelcomeChannel ? `<small style="color: #94a3b8; display: block; margin-top: 5px;">Bot database: ${guildData.botWelcomeChannel}</small>` : ''}
+                </div>
+                <div>
+                    <label>Chat Level Channel ID</label><br>
+                    <input type="text" id="chatLevelChannel" class="input-field" value="${chatLevelValue}" placeholder="Channel ID">
+                    ${guildData.botChatLevelChannel ? `<small style="color:#94a3b8; display:block; margin-top:5px;">Bot database: ${guildData.botChatLevelChannel}</small>` : ""}
+                </div>
+                <div>
+                    <label>Demon Hunt Channel ID</label><br>
+                    <input type="text" id="demonHuntChannel" class="input-field" value="${demonHuntValue}" placeholder="Channel ID">
+                    <small style="color: #94a3b8; display: block; margin-top: 5px;">Note: May require separate endpoint</small>
+                </div>
+            </div>
+            <br>
+            <button type="submit" class="action-btn">💾 Save Settings</button>
+            <button type="button" class="action-btn" style="background:#64748b;" id="closeSettings">Close</button>
+        `;
+
+        // Re-attach event listeners
+        document.getElementById('closeSettings').addEventListener('click', () => {
+            document.getElementById("serverSettingsPanel").style.display = "none";
+        });
+    }
+
+    function showDefaultSettingsForm(guildName) {
+        const form = document.getElementById("guildSettingsForm");
+        form.innerHTML = `
+            <div style="background: #1e40af; padding: 10px; border-radius: 8px; margin-bottom: 15px;">
+                <i class="fas fa-info-circle"></i> 
+                Using default settings. Some features may require bot commands.
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+                <div>
+                    <label>Prefix</label><br>
+                    <input type="text" id="prefix" class="input-field" value="!">
+                    <small style="color: #94a3b8; display: block; margin-top: 5px;">Default prefix: !</small>
+                </div>
+                <div>
+                    <label>Welcome Channel ID</label><br>
+                    <input type="text" id="welcomeChannel" class="input-field" placeholder="Enter channel ID">
+                </div>
+                <div>
+                    <label>Chat Level Channel ID</label><br>
+                    <input type="text" id="chatLevelChannel" class="input-field" placeholder="Channel ID">
+                </div>
+                <div>
+                    <label>Demon Hunt Channel ID</label><br>
+                    <input type="text" id="demonHuntChannel" class="input-field" placeholder="Channel ID">
+                </div>
+            </div>
+            <br>
+            <button type="submit" class="action-btn">💾 Save Settings</button>
+            <button type="button" class="action-btn" style="background:#64748b;" id="closeSettings">Close</button>
+        `;
+
+        // Re-attach event listeners
+        document.getElementById('closeSettings').addEventListener('click', () => {
+            document.getElementById("serverSettingsPanel").style.display = "none";
+        });
+    }
+
+    // Save guild settings - USING WORKING ENDPOINTS
     document.getElementById("guildSettingsForm").addEventListener("submit", async (e) => {
         e.preventDefault();
         if (!selectedGuildId) return;
 
-        const prefix = document.getElementById("prefix").value;
-        const welcomeChannel = document.getElementById("welcomeChannel").value || null;
-        const chatLevelChannel = document.getElementById("chatLevelChannel").value || null;
-        const demonHuntChannel = document.getElementById("demonHuntChannel").value || null;
+        const welcomeChannel = document.getElementById("welcomeChannel").value.trim() || null;
+        const chatLevelChannel = document.getElementById("chatLevelChannel").value.trim() || null;
+        // Note: Prefix and demonHuntChannel may not have endpoints yet
 
         const saveStatus = document.getElementById("saveStatus");
-    
-        try {
-            // Save ALL settings in one request to match your server-side API
-            const res = await fetch(`${API_BASE}/guild/${selectedGuildId}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    prefix: prefix,
-                    welcomeChannel: welcomeChannel,
-                    chatLevelChannel: chatLevelChannel,
-                    demonHuntChannel: demonHuntChannel
-                }),
-                credentials: "include",
-            });
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        
+        // Show loading state
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        submitBtn.disabled = true;
 
-            if (res.ok) {
-                saveStatus.style.display = "block";
-                saveStatus.textContent = "✅ Settings saved successfully!";
-                saveStatus.style.color = "#22c55e";
+        try {
+            console.log(`Saving settings for guild: ${selectedGuildId}`);
             
-                setTimeout(() => {
-                    saveStatus.style.display = "none";
-                }, 3500);
-            } else {
-                // Handle different error responses
-                if (res.status === 404) {
-                    throw new Error("Server endpoint not found. Please check the API URL.");
-                } else if (res.status === 401) {
-                    throw new Error("Please login again");
-                } else if (res.status === 403) {
-                    throw new Error("You need 'Manage Server' permissions");
-                } else {
-                    const errorText = await res.text();
-                    throw new Error(`Server error: ${errorText}`);
+            let successCount = 0;
+            let totalOperations = 0;
+            const errors = [];
+
+            // Save welcome channel using the working endpoint
+            if (welcomeChannel) {
+                totalOperations++;
+                try {
+                    const welcomeRes = await fetch(`${API_BASE}/guild/${selectedGuildId}/welcome-channel`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ welcomeChannel }),
+                        credentials: "include",
+                    });
+                    
+                    if (welcomeRes.ok) {
+                        successCount++;
+                        console.log('Welcome channel saved successfully');
+                    } else {
+                        const errorText = await welcomeRes.text();
+                        errors.push(`Welcome Channel: ${errorText}`);
+                        console.error('Welcome channel save failed:', welcomeRes.status, errorText);
+                    }
+                } catch (err) {
+                    errors.push(`Welcome Channel: ${err.message}`);
                 }
             }
+
+            // Save chat level channel using the working endpoint
+            if (chatLevelChannel) {
+                totalOperations++;
+                try {
+                    const chatLevelRes = await fetch(`${API_BASE}/guild/${selectedGuildId}/chatLevel-channel`, {
+                        method: "POST", 
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ chatLevelChannel }),
+                        credentials: "include",
+                    });
+                    
+                    if (chatLevelRes.ok) {
+                        successCount++;
+                        console.log('Chat level channel saved successfully');
+                    } else {
+                        const errorText = await chatLevelRes.text();
+                        errors.push(`Chat Level Channel: ${errorText}`);
+                        console.error('Chat level channel save failed:', chatLevelRes.status, errorText);
+                    }
+                } catch (err) {
+                    errors.push(`Chat Level Channel: ${err.message}`);
+                }
+            }
+
+            // Show appropriate message
+            if (errors.length === 0 && successCount > 0) {
+                saveStatus.style.display = "block";
+                saveStatus.textContent = `✅ Successfully saved ${successCount} setting(s)!`;
+                saveStatus.style.color = "#22c55e";
+                
+                // Refresh the settings after a delay to show updated values
+                setTimeout(() => {
+                    manageGuild(selectedGuildId, document.getElementById("selectedServerName").textContent);
+                }, 1500);
+            } else if (errors.length > 0) {
+                saveStatus.style.display = "block";
+                saveStatus.textContent = `⚠️ Partially saved: ${errors.join(', ')}`;
+                saveStatus.style.color = "#f59e0b";
+            } else {
+                saveStatus.style.display = "block";
+                saveStatus.textContent = "💡 No changes to save";
+                saveStatus.style.color = "#94a3b8";
+            }
+            
         } catch (err) {
             console.error("Save error:", err);
             saveStatus.style.display = "block";
             saveStatus.textContent = `❌ Error: ${err.message}`;
             saveStatus.style.color = "#ef4444";
-        
+        } finally {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+            
             setTimeout(() => {
                 saveStatus.style.display = "none";
             }, 5000);
-       }
+        }
     });
 </script>
 </body>
