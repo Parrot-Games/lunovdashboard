@@ -715,62 +715,53 @@
         const chatLevelChannel = document.getElementById("chatLevelChannel").value || null;
         const demonHuntChannel = document.getElementById("demonHuntChannel").value || null;
 
+        const saveStatus = document.getElementById("saveStatus");
+    
         try {
-            // Save general settings to dashboard database
-            const generalRes = await fetch(`${API_BASE}/guild/${selectedGuildId}`, {
+            // Save ALL settings in one request to match your server-side API
+            const res = await fetch(`${API_BASE}/guild/${selectedGuildId}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    prefix,
-                    welcomeChannel,
-                    chatLevelChannel,
-                    demonHuntChannel
+                    prefix: prefix,
+                    welcomeChannel: welcomeChannel,
+                    chatLevelChannel: chatLevelChannel,
+                    demonHuntChannel: demonHuntChannel
                 }),
                 credentials: "include",
             });
 
-            // SPECIAL: Save welcome channel exactly like bot does
-            if (welcomeChannel) {
-                const welcomeRes = await fetch(`${API_BASE}/guild/${selectedGuildId}/welcome-channel`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ welcomeChannel }),
-                    credentials: "include",
-                });
-
-                if (!welcomeRes.ok) {
-                    throw new Error("Failed to save welcome channel to bot database");
-                }
-            }
-
-            // SPECIAL: Save chat level channel exactly like bot does
-            if (chatLevelChannel) {
-                const chatLevelRes = await fetch(`${API_BASE}/guild/${selectedGuildId}/chatLevel-channel`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ chatLevelChannel }),
-                    credentials: "include",
-                });
-
-                if (!chatLevelRes.ok) {
-                    throw new Error("Failed to save chat level channel to bot database");
-                }
-            }
-
-            if (generalRes.ok) {
-                document.getElementById("saveStatus").style.display = "block";
-                document.getElementById("saveStatus").textContent = "✅ Settings saved! (Both dashboard and bot)";
+            if (res.ok) {
+                saveStatus.style.display = "block";
+                saveStatus.textContent = "✅ Settings saved successfully!";
+                saveStatus.style.color = "#22c55e";
+            
                 setTimeout(() => {
-                    document.getElementById("saveStatus").style.display = "none";
+                    saveStatus.style.display = "none";
                 }, 3500);
             } else {
-                const error = await generalRes.text();
-                alert(`Failed to save settings: ${error}`);
+                // Handle different error responses
+                if (res.status === 404) {
+                    throw new Error("Server endpoint not found. Please check the API URL.");
+                } else if (res.status === 401) {
+                    throw new Error("Please login again");
+                } else if (res.status === 403) {
+                    throw new Error("You need 'Manage Server' permissions");
+                } else {
+                    const errorText = await res.text();
+                    throw new Error(`Server error: ${errorText}`);
+                }
             }
         } catch (err) {
             console.error("Save error:", err);
-            alert("Failed to save settings. Please try again.");
-        }
+            saveStatus.style.display = "block";
+            saveStatus.textContent = `❌ Error: ${err.message}`;
+            saveStatus.style.color = "#ef4444";
+        
+            setTimeout(() => {
+                saveStatus.style.display = "none";
+            }, 5000);
+       }
     });
 </script>
 </body>
